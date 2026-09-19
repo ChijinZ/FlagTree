@@ -115,7 +115,7 @@ endmacro()
 macro(flagtree_configure_flagprism)
   set(_flagprism_default OFF)
   # FlagPrism: enable the external tools for the supported mthreads backend.
-  if(FLAGTREE_BACKEND MATCHES "^(ascend|iluvatar|mthreads)$")
+  if(FLAGTREE_BACKEND MATCHES "^(ascend|iluvatar|mthreads|enflame)$")
     set(_flagprism_default ON)
   endif()
   option(TRITON_BUILD_FLAGPRISM
@@ -124,10 +124,10 @@ macro(flagtree_configure_flagprism)
 
   if(TRITON_BUILD_FLAGPRISM)
     # FlagPrism: accept mthreads as a supported integration backend.
-    if(NOT FLAGTREE_BACKEND MATCHES "^(ascend|iluvatar|mthreads)$")
+    if(NOT FLAGTREE_BACKEND MATCHES "^(ascend|iluvatar|mthreads|enflame)$")
       message(FATAL_ERROR
         "TRITON_BUILD_FLAGPRISM is only supported when "
-        "FLAGTREE_BACKEND is ascend, iluvatar, or mthreads.")
+        "FLAGTREE_BACKEND is ascend, iluvatar, mthreads, or enflame.")
     endif()
     if(TRITON_BUILD_PROTON)
       message(FATAL_ERROR

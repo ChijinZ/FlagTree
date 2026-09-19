@@ -31,7 +31,7 @@
 // FlagPrism: select the external component's dialect registration.
 #ifdef __FLAGPRISM__
 // FlagPrism: use the external component's replacement Proton registration.
-#include "FlagPrism/Profiler/Dialect/include/Integration/Registration.h"
+#include "Integration/Registration.h"
 #else
 #include "proton/Dialect/include/Conversion/ProtonGPUToLLVM/Passes.h"
 #include "proton/Dialect/include/Conversion/ProtonGPUToLLVM/ProtonAMDGPUToLLVM/Passes.h"

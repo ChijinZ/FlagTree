@@ -1,4 +1,7 @@
 # Flagtree Third-Party Backend - Enflame Accelerator Support
+
+Debugger/profiler dependencies, build options and tests: [FlagPrism integration](FLAGPRISM.md).
+
 ## Overview
 The Flagtree third-party backend includes the backend implementation for Enflame accelerators. It provides core component backend bindings and test suites for developing and deploying applications on Enflame hardware platforms.
 

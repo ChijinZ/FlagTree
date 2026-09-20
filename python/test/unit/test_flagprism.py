@@ -186,7 +186,7 @@ def test_build_helper_prefers_resolved_source_root(build_helper, monkeypatch, tm
         (None, False),
         ("ascend", True),
         ("iluvatar", True),
-        ("enflame", False),
+        ("enflame", True),
         ("tsingmicro", False),
         ("cambricon", False),
         ("aipu", False),
@@ -217,12 +217,13 @@ def test_flagprism_is_enabled_by_default_for_supported_backends(flagprism_setup_
         assert policy.console_scripts() == []
 
 
-def test_ascend_can_explicitly_disable_flagprism_without_changing_proton(flagprism_setup_factory, monkeypatch):
+@pytest.mark.parametrize("backend", ("ascend", "iluvatar", "mthreads", "enflame"))
+def test_supported_backend_can_disable_flagprism_without_changing_proton(flagprism_setup_factory, monkeypatch, backend):
     create, downloads = flagprism_setup_factory
     monkeypatch.setenv("TRITON_BUILD_FLAGPRISM", "OFF")
     monkeypatch.setenv("TRITON_BUILD_PROTON", "ON")
 
-    policy = create("ascend")
+    policy = create(backend)
 
     assert not policy.enabled
     assert not downloads
@@ -230,7 +231,9 @@ def test_ascend_can_explicitly_disable_flagprism_without_changing_proton(flagpri
 
 
 # FlagPrism: resolve relative source overrides from the project, not the cwd.
-def test_setup_resolves_relative_source_override_from_project_root(flagprism_setup_factory, monkeypatch, tmp_path):
+@pytest.mark.parametrize("backend", ("mthreads", "enflame"))
+def test_setup_resolves_relative_source_override_from_project_root(flagprism_setup_factory, monkeypatch, tmp_path,
+                                                                   backend):
     create, downloads = flagprism_setup_factory
     unrelated_cwd = tmp_path / "work"
     unrelated_cwd.mkdir()
@@ -249,7 +252,7 @@ def test_setup_resolves_relative_source_override_from_project_root(flagprism_set
         },
     )
 
-    policy = create("mthreads")
+    policy = create(backend)
 
     assert policy.build_config is build_config
     assert resolved_sources == [(tmp_path / "third_party" / "FlagPrism").resolve()]
@@ -257,8 +260,9 @@ def test_setup_resolves_relative_source_override_from_project_root(flagprism_set
 
 
 # FlagPrism: reject invalid overrides without downloading another checkout.
+@pytest.mark.parametrize("backend", ("mthreads", "enflame"))
 @pytest.mark.parametrize("source_kind", ("missing", "incomplete"))
-def test_setup_rejects_invalid_source_override(flagprism_setup_factory, monkeypatch, tmp_path, source_kind):
+def test_setup_rejects_invalid_source_override(flagprism_setup_factory, monkeypatch, tmp_path, source_kind, backend):
     create, downloads = flagprism_setup_factory
     source_root = tmp_path / f"{source_kind}-FlagPrism"
     if source_kind == "incomplete":
@@ -268,34 +272,31 @@ def test_setup_rejects_invalid_source_override(flagprism_setup_factory, monkeypa
     monkeypatch.delenv("TRITON_BUILD_PROTON", raising=False)
 
     with pytest.raises(RuntimeError, match="FLAGPRISM_SOURCE_DIR"):
-        create("mthreads")
+        create(backend)
 
     assert not downloads
 
 
-def test_non_ascend_explicit_flagprism_is_rejected_before_side_effects(flagprism_setup_factory, monkeypatch):
+def test_unsupported_backend_rejected_before_side_effects(flagprism_setup_factory, monkeypatch):
     create, downloads = flagprism_setup_factory
     monkeypatch.setenv("TRITON_BUILD_FLAGPRISM", "ON")
     monkeypatch.setenv("TRITON_BUILD_PROTON", "ON")
 
-    # FlagPrism: retain the former diagnostic assertion for reference.
-    # with pytest.raises(RuntimeError, match="ascend or iluvatar"):
-    #     create("enflame")
-    # FlagPrism: include mthreads in the supported-backend diagnostic.
-    with pytest.raises(RuntimeError, match="ascend, iluvatar, or mthreads"):
-        create("enflame")
+    with pytest.raises(RuntimeError, match="only supported when"):
+        create("tsingmicro")
 
     assert not downloads
     assert setup_helper.os.environ["TRITON_BUILD_PROTON"] == "ON"
 
 
-def test_ascend_rejects_flagprism_and_proton_together(flagprism_setup_factory, monkeypatch):
+@pytest.mark.parametrize("backend", ("ascend", "iluvatar", "mthreads", "enflame"))
+def test_supported_backend_rejects_flagprism_and_proton_together(flagprism_setup_factory, monkeypatch, backend):
     create, downloads = flagprism_setup_factory
     monkeypatch.delenv("TRITON_BUILD_FLAGPRISM", raising=False)
     monkeypatch.setenv("TRITON_BUILD_PROTON", "ON")
 
     with pytest.raises(RuntimeError, match="cannot both be enabled"):
-        create("ascend")
+        create(backend)
 
     assert not downloads
     assert setup_helper.os.environ["TRITON_BUILD_PROTON"] == "ON"

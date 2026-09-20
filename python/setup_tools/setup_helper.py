@@ -273,7 +273,7 @@ class FlagPrismSetup:
         self._dependency_cmake_args = dependency_cmake_args
 
         if self.enabled and backend not in supported_backends:
-            # FlagPrism: report the newly supported mthreads backend.
+            # FlagPrism: report the supported integration backends.
             raise RuntimeError("TRITON_BUILD_FLAGPRISM is only supported when "
                                "FLAGTREE_BACKEND=ascend, iluvatar, mthreads, or enflame.")
         if not self.enabled:

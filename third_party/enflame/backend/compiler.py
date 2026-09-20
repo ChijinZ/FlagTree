@@ -304,6 +304,39 @@ def make_llir(mod, metadata, options):
     return toolkit.gcu_compiler_opt(mod, *passes)
 
 
+def _compile_with_debugger_fabs(mod, options, tmpdir, compile_args):
+    # FlagPrism: the GCU300 SDK may optimize scalar L2 summary sqrt(x*x)
+    # into fabs(float), whose C++ device symbol is missing from its libraries.
+    # Link a sign-bit implementation only after the caller recognizes that
+    # specific linker failure; keep normal optimization and all collectors.
+    compat = os.path.join(tmpdir, "debugger_fabs.ll")
+    with open(compat, "w") as output:
+        output.write('''
+define weak float @_Z4fabsf(float %x) {
+entry:
+  %slot = alloca i32, align 4, addrspace(5)
+  store volatile i32 2147483647, i32 addrspace(5)* %slot, align 4
+  %mask = load volatile i32, i32 addrspace(5)* %slot, align 4
+  %bits = bitcast float %x to i32
+  %absolute = and i32 %bits, %mask
+  %value = bitcast i32 %absolute to float
+  ret float %value
+}
+''')
+    # The volatile sign mask prevents LLVM from reconstructing
+    # the same missing libcall. AS5 is the GCU300 stack space.
+    libraries = [path for _, path in (options.extern_libs or []) if path]
+    libraries.append(compat)
+    # attach-target appends instead of replacing. Remove the old
+    # target so serialization does not first compile it unlinked.
+    unattached, replaced = re.subn(r', targets = \[(?:[^\[\]\n]|\[[^\[\]\n]*\])*\]', '', str(mod), count=1)
+    if replaced != 1:
+        raise RuntimeError('Cannot attach GCU debugger math compatibility library')
+    linked = toolkit.gcu_compiler_opt(unattached,
+                                      '--gcu-attach-target=arch=gcu300' + ''.join(f' l={path}' for path in libraries))
+    toolkit.compile(linked, *compile_args)
+
+
 def make_fatbin(mod, metadata, options):
     """Unified fatbin generation for all GCU architectures.
 
@@ -350,39 +383,11 @@ def make_fatbin(mod, metadata, options):
             try:
                 toolkit.compile(mod, *compile_args)
             except Exception as error:
-                # GCU300's SDK can lower scalar summary sqrt(x*x) to a C++
-                # fabs libcall which is absent from its device libraries.
-                # Supply precisely that symbol, retaining normal optimization
-                # and all numeric collectors. Do not retry unrelated failures.
+                # FlagPrism: retry only the known GCU300 debugger SDK link failure.
                 if not (options.arch == "gcu300" and options.instrumentation_mode.startswith("debugger")
                         and "ld.lld: error: relocation" in str(error) and "fabs(float)" in str(error)):
                     raise
-                compat = os.path.join(tmpdir, "debugger_fabs.ll")
-                with open(compat, "w") as output:
-                    output.write('''
-define weak float @_Z4fabsf(float %x) {
-entry:
-  %slot = alloca i32, align 4, addrspace(5)
-  store volatile i32 2147483647, i32 addrspace(5)* %slot, align 4
-  %mask = load volatile i32, i32 addrspace(5)* %slot, align 4
-  %bits = bitcast float %x to i32
-  %absolute = and i32 %bits, %mask
-  %value = bitcast i32 %absolute to float
-  ret float %value
-}
-''')
-                # The volatile sign mask prevents LLVM from reconstructing
-                # the same missing libcall. AS5 is the GCU300 stack space.
-                libraries = [path for _, path in (options.extern_libs or []) if path]
-                libraries.append(compat)
-                # attach-target appends instead of replacing. Remove the old
-                # target so serialization does not first compile it unlinked.
-                unattached, replaced = re.subn(r', targets = \[(?:[^\[\]\n]|\[[^\[\]\n]*\])*\]', '', str(mod), count=1)
-                if replaced != 1:
-                    raise RuntimeError('Cannot attach GCU debugger math compatibility library') from error
-                linked = toolkit.gcu_compiler_opt(
-                    unattached, '--gcu-attach-target=arch=gcu300' + ''.join(f' l={path}' for path in libraries))
-                toolkit.compile(linked, *compile_args)
+                _compile_with_debugger_fabs(mod, options, tmpdir, compile_args)
                 metadata['debug_math_compat'] = 'scalar_fabs'
             with open(bin, "rb") as f:
                 return f.read()

@@ -1,8 +1,5 @@
 # Flagtree 第三方后端 - 燧原加速器支持
 
-Debugger/profiler 的依赖、构建开关和测试说明见 [FlagPrism 集成](FLAGPRISM.md)。
-
-
 ## 概述
 
 Flagtree 第三方后端包含针对燧原加速器后端，提供核心组件后端绑定和测试套件，用于在燧原硬件平台上开发和部署应用程序。

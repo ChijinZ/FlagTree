@@ -186,6 +186,7 @@ def test_build_helper_prefers_resolved_source_root(build_helper, monkeypatch, tm
         (None, False),
         ("ascend", True),
         ("iluvatar", True),
+        # FlagPrism: Enflame now enables the integrated tools by default.
         ("enflame", True),
         ("tsingmicro", False),
         ("cambricon", False),
@@ -217,6 +218,7 @@ def test_flagprism_is_enabled_by_default_for_supported_backends(flagprism_setup_
         assert policy.console_scripts() == []
 
 
+# FlagPrism: explicit opt-out preserves Proton settings on every supported backend.
 @pytest.mark.parametrize("backend", ("ascend", "iluvatar", "mthreads", "enflame"))
 def test_supported_backend_can_disable_flagprism_without_changing_proton(flagprism_setup_factory, monkeypatch, backend):
     create, downloads = flagprism_setup_factory
@@ -277,6 +279,7 @@ def test_setup_rejects_invalid_source_override(flagprism_setup_factory, monkeypa
     assert not downloads
 
 
+# FlagPrism: use an unsupported backend now that Enflame is supported.
 def test_unsupported_backend_rejected_before_side_effects(flagprism_setup_factory, monkeypatch):
     create, downloads = flagprism_setup_factory
     monkeypatch.setenv("TRITON_BUILD_FLAGPRISM", "ON")
@@ -289,6 +292,7 @@ def test_unsupported_backend_rejected_before_side_effects(flagprism_setup_factor
     assert setup_helper.os.environ["TRITON_BUILD_PROTON"] == "ON"
 
 
+# FlagPrism: enforce Proton mutual exclusion for all supported integrations.
 @pytest.mark.parametrize("backend", ("ascend", "iluvatar", "mthreads", "enflame"))
 def test_supported_backend_rejects_flagprism_and_proton_together(flagprism_setup_factory, monkeypatch, backend):
     create, downloads = flagprism_setup_factory

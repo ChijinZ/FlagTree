@@ -142,9 +142,3 @@ third_party/tsingmicro/backend/lib/
 third_party/flir
 tsingmicro_launch.log
 python/tsingmicro_launch.log
-
-# Downloaded Enflame SDK artifacts (provided by the backend packaging step).
-third_party/enflame/backend/VERSION
-third_party/enflame/backend/_triton_gcu*.so
-third_party/enflame/backend/libtriton_gcu*_core.so
-third_party/enflame/backend/triton-gcu*-opt

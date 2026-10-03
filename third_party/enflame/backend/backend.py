@@ -735,10 +735,10 @@ class GcuLauncher(object):
         # FlagPrism: preserve the direct launch path when debugging is disabled.
         if not self._debug_enabled:
             return self.launch(*args, **kwargs)
-        # FlagPrism: prepare capture and finalize it through the launch context.
         from flagtree import _flagprism
         # FlagPrism: exclude launcher arguments, including for zero-argument kernels.
         user_args = args[-self.user_arg_count:] if self.user_arg_count else ()
+        # FlagPrism: prepare capture and finalize it through the launch context.
         with _flagprism.debugger_launch_context("gcu", self.metadata, args[:3], args[3], args[6],
                                                 user_args) as hidden_args:
             return self.launch(*args, *hidden_args, **kwargs)

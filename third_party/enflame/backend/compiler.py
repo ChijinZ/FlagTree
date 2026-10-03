@@ -14,7 +14,6 @@
 # limitations under the License.
 #
 import re
-# FlagPrism: decode debugger instrumentation options from the cache key.
 import json
 import os
 import subprocess
@@ -24,7 +23,6 @@ from triton.backends.enflame.backend import GCUBackend, _version_key, _triton_ve
 from triton.backends.enflame import toolkit
 from triton.backends.enflame.toolkit import resolve_gcu500_tool, PY_TOOLS_PATH, get_tops_home
 
-# FlagPrism: replace copies compiler options for debugger-specific lowering.
 from dataclasses import dataclass, replace
 import functools
 from typing import Any, Tuple

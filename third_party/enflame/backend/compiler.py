@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 import re
+# FlagPrism: decode debugger instrumentation options from the cache key.
 import json
 import os
 import subprocess
@@ -23,6 +24,7 @@ from triton.backends.enflame.backend import GCUBackend, _version_key, _triton_ve
 from triton.backends.enflame import toolkit
 from triton.backends.enflame.toolkit import resolve_gcu500_tool, PY_TOOLS_PATH, get_tops_home
 
+# FlagPrism: replace copies compiler options for debugger-specific lowering.
 from dataclasses import dataclass, replace
 import functools
 from typing import Any, Tuple
@@ -153,8 +155,8 @@ def make_ttir(mod, metadata, options):
     pm.enable_debug()
 
     passes.common.add_inliner(pm)
+    # FlagPrism: debug collectors require element pointers for block-pointer kernels.
     if options.arch == "gcu500" or options.instrumentation_mode.startswith("debugger"):
-        # Debug collectors require element pointers, including FlagGems block-pointer kernels.
         passes.ttir.add_rewrite_tensor_pointer(pm)
     passes.ttir.add_rewrite_tensor_descriptor_to_pointer(pm)
     passes.common.add_canonicalizer(pm)
@@ -200,10 +202,9 @@ def make_ttgir(mod, metadata, options):
     return mod
 
 
+# FlagPrism: local collect regions can request L2 under a global L1 default.
+# The payload plan after TTIR instrumentation determines the SDK's i64 requirement.
 def _debug_codegen_options(options, metadata):
-    # Local collect regions can request L2 under a global L1 default. The
-    # inserted payload plan, available after TTIR instrumentation, is the
-    # source of truth for the SDK's i64 lowering requirement.
     if (options.instrumentation_mode.startswith("debugger")
             and metadata.get("debug_full_dump_payload_bytes_per_instance", 0) > 0 and not options.enable_i64):
         metadata["enable_i64"] = True
@@ -212,6 +213,7 @@ def _debug_codegen_options(options, metadata):
 
 
 def make_gcuir(mod, metadata, options):
+    # FlagPrism: apply local L2 payload requirements before SDK lowering.
     options = _debug_codegen_options(options, metadata)
     patched_mod = _patch_kernel_for_gcuir(str(mod))
     metadata['name'] = re.search('tt.func public @(\\w+)\\(', patched_mod).group(1).strip()
@@ -307,6 +309,7 @@ def make_gcuir(mod, metadata, options):
 
 
 def make_llir(mod, metadata, options):
+    # FlagPrism: apply local L2 payload requirements before SDK lowering.
     options = _debug_codegen_options(options, metadata)
     mod = _patch_kernel_for_llir(str(mod), options.arch)
     passes = []
@@ -345,11 +348,11 @@ def make_llir(mod, metadata, options):
     return toolkit.gcu_compiler_opt(mod, *passes)
 
 
+# FlagPrism: the GCU300 SDK may optimize scalar L2 summary sqrt(x*x)
+# into fabs(float), whose C++ device symbol is missing from its libraries.
+# Link a sign-bit implementation only after the caller recognizes that
+# specific linker failure; keep normal optimization and all collectors.
 def _compile_with_debugger_fabs(mod, options, tmpdir, compile_args):
-    # FlagPrism: the GCU300 SDK may optimize scalar L2 summary sqrt(x*x)
-    # into fabs(float), whose C++ device symbol is missing from its libraries.
-    # Link a sign-bit implementation only after the caller recognizes that
-    # specific linker failure; keep normal optimization and all collectors.
     compat = os.path.join(tmpdir, "debugger_fabs.ll")
     with open(compat, "w") as output:
         output.write('''
@@ -421,10 +424,10 @@ def make_fatbin(mod, metadata, options):
                 "--device-only", "--is-triton-backend", f"--arch={options.arch}", f"--toolkit-path={toolkit.datadir}",
                 f"--output={bin}"
             ]
+            # FlagPrism: retry only the known GCU300 debugger SDK link failure.
             try:
                 toolkit.compile(mod, *compile_args)
             except Exception as error:
-                # FlagPrism: retry only the known GCU300 debugger SDK link failure.
                 if not (options.arch == "gcu300" and options.instrumentation_mode.startswith("debugger")
                         and "ld.lld: error: relocation" in str(error) and "fabs(float)" in str(error)):
                     raise
@@ -738,7 +741,7 @@ class _GCUBackend(BaseBackend):
         elif "enable_i64" not in opts:
             args["enable_i64"] = _default_enable_i64()
 
-        # L2 instrumentation introduces i64 payload packing even when the
+        # FlagPrism: L2 instrumentation introduces i64 payload packing even when the
         # original operator only uses f32/i32 (and FlagGems sets ENABLE_I64=False).
         # The instrumentation configuration is part of the compilation cache key.
         mode = args.get("instrumentation_mode", "")
@@ -778,6 +781,7 @@ class _GCUBackend(BaseBackend):
         stages["ttir"] = lambda src, metadata: make_ttir(src, metadata, options)
         stages["ttgir"] = lambda src, metadata: make_ttgir(src, metadata, options)
         if options.arch == "gcu500":
+            # FlagPrism: apply the same L2 payload requirements to the GCU500 path.
             stages["llir"] = lambda src, metadata: _make_llir_gcu500(src, metadata,
                                                                      _debug_codegen_options(options, metadata))
         else:
